@@ -37,7 +37,12 @@ button{border:0;border-radius:12px;padding:12px 16px;cursor:pointer}
 <label>名前</label><input id="name" placeholder="名前を入力">
 <label>カテゴリ</label><select id="category"><option value="all">すべて（700語）</option><option value="数字・時間・曜日・月">数字・時間・曜日・月（80語）</option><option value="食べ物・飲み物">食べ物・飲み物（80語）</option><option value="動物・自然・天気">動物・自然・天気（70語）</option><option value="体・服・色・形">体・服・色・形（70語）</option><option value="学校・家・身の回り">学校・家・身の回り（80語）</option><option value="場所・建物・乗り物">場所・建物・乗り物（60語）</option><option value="家族・人・職業・国">家族・人・職業・国（70語）</option><option value="スポーツ・遊び・音楽">スポーツ・遊び・音楽（50語）</option><option value="動詞">動詞（80語）</option><option value="形容詞・副詞・あいさつ・その他">形容詞・副詞・あいさつ・その他（60語）</option></select>
 <label>出題方向</label><select id="direction"><option value="mix">ミックス</option><option value="en-ja">英語 → 日本語</option><option value="ja-en">日本語 → 英語</option></select>
-<label>問題数</label><select id="countMode"><option value="10">10問</option><option value="20">20問</option><option value="30">30問</option><option value="50">50問</option><option value="100">100問</option></select>
+<label>出題順</label>
+<select id="orderMode">
+  <option value="random">ランダム</option>
+  <option value="category">カテゴリー順・登録順</option>
+</select>
+  <label>問題数</label><select id="countMode"><option value="10">10問</option><option value="20">20問</option><option value="30">30問</option><option value="50">50問</option><option value="100">100問</option><option value="all">選択したカテゴリーを全部</option></select>
 <button class="primary" style="width:100%" onclick="startQuiz()">スタート</button>
 <div class="note">※ 文部科学省の「600〜700語程度」は固定の公式700語リストではなく、指導で扱う語彙量の目安です。このゲームは小学生向けの基礎語彙を700語に整理した練習用リストです。</div>
 </section>
@@ -69,7 +74,49 @@ function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.fl
 function playTone(ok){try{const ctx=new (window.AudioContext||window.webkitAudioContext)();const osc=ctx.createOscillator(),gain=ctx.createGain();osc.connect(gain);gain.connect(ctx.destination);osc.type=ok?'sine':'square';const t=ctx.currentTime;if(ok){osc.frequency.setValueAtTime(660,t);osc.frequency.setValueAtTime(880,t+.12);osc.frequency.setValueAtTime(1175,t+.24);gain.gain.setValueAtTime(.22,t);gain.gain.exponentialRampToValueAtTime(.001,t+.45);osc.start();osc.stop(t+.45)}else{osc.frequency.setValueAtTime(220,t);osc.frequency.setValueAtTime(150,t+.18);gain.gain.setValueAtTime(.16,t);gain.gain.exponentialRampToValueAtTime(.001,t+.42);osc.start();osc.stop(t+.42)}}catch(e){}}
 function speak(text){if(!('speechSynthesis' in window))return; speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=.82;speechSynthesis.speak(u)}
 function speakCurrent(){if(!qs[idx])return;speak(qs[idx].en)}
-function startQuiz(){const name=el('name').value.trim();if(!name){alert('名前を入力してください');return};let pool=VOCAB;const cat=el('category').value;if(cat!=='all')pool=VOCAB.filter(x=>x.cat===cat);const n=Math.min(Number(el('countMode').value),pool.length);qs=shuffle(pool).slice(0,n);idx=0;answers=[];lastWrong=[];sentForAttempt=false;startedAt=new Date();el('start').classList.add('hidden');el('result').classList.add('hidden');el('quiz').classList.remove('hidden');render()}
+function startQuiz(){
+  const name=el('name').value.trim();
+
+  if(!name){
+    alert('名前を入力してください');
+    return;
+  }
+
+  let pool=VOCAB;
+
+  const cat=el('category').value;
+
+  if(cat!=='all'){
+    pool=VOCAB.filter(x=>x.cat===cat);
+  }
+
+  const order=el('orderMode').value;
+  const countValue=el('countMode').value;
+
+  const n=
+    countValue==='all'
+      ? pool.length
+      : Math.min(Number(countValue),pool.length);
+
+  qs=
+    (order==='random'
+      ? shuffle(pool)
+      : [...pool]
+    ).slice(0,n);
+
+  idx=0;
+  answers=[];
+  selected=null;
+  lastWrong=[];
+  sentForAttempt=false;
+  startedAt=new Date();
+
+  el('start').classList.add('hidden');
+  el('result').classList.add('hidden');
+  el('quiz').classList.remove('hidden');
+
+  render();
+}
 function makeChoices(x,dir){const key=dir==='en-ja'?'ja':'en';let candidates=VOCAB.filter(v=>v.en!==x.en && v[key]!==x[key] && v.cat===x.cat);if(candidates.length<3)candidates=VOCAB.filter(v=>v.en!==x.en && v[key]!==x[key]);const seen=new Set(),vals=[];for(const v of shuffle(candidates)){const val=v[key];if(!seen.has(val)){seen.add(val);vals.push(val)}if(vals.length===3)break}return shuffle([x[key],...vals])}
 function render(){selected=null;const x=qs[idx];const mode=el('direction').value;currentDirection=mode==='mix'?(Math.random()<.5?'en-ja':'ja-en'):mode;el('counter').textContent=`第${idx+1}問 / ${qs.length}問`;el('catPill').textContent=x.cat;el('dirBadge').textContent=currentDirection==='en-ja'?'英 → 日':'日 → 英';el('prompt').textContent=currentDirection==='en-ja'?x.en:x.ja;el('speakerBtn').style.display=currentDirection==='en-ja'?'inline-block':'none';el('bar').style.width=`${idx/qs.length*100}%`;const box=el('choices');box.innerHTML='';const fb=el('feedback');fb.classList.add('hidden');fb.innerHTML='';fb.style.background='';fb.style.color='';const next=el('nextBtn');next.disabled=true;next.style.opacity='.5';const choices=makeChoices(x,currentDirection);const correct=currentDirection==='en-ja'?x.ja:x.en;choices.forEach(t=>{const b=document.createElement('button');b.className='choice';b.textContent=t;b.onclick=()=>{if(selected!==null)return;selected=t;answers[idx]=t;document.querySelectorAll('.choice').forEach(btn=>{btn.disabled=true;if(btn.textContent===correct){btn.style.background='#e8f5e9';btn.style.borderColor='#2e7d32'}if(btn.textContent===t&&t!==correct){btn.style.background='#ffebee';btn.style.borderColor='#c62828'}});const ok=t===correct;playTone(ok);speak(x.en);fb.classList.remove('hidden');fb.style.background=ok?'#e8f5e9':'#ffebee';fb.style.color=ok?'#166534':'#b91c1c';fb.innerHTML=`<div style="font-size:28px">${ok?'○ 正解！':'× 不正解'}</div><div style="margin-top:6px">${x.en} ＝ ${x.ja}</div>`;next.disabled=false;next.style.opacity='1'};box.appendChild(b)})}
 function nextQ(){if(selected===null)return;idx++;if(idx<qs.length)render();else showResult()}
